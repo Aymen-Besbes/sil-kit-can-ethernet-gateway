@@ -1,0 +1,34 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../SilKit/include/silkit/services/datatypes.hpp
+cstdint
+-
+string
+-
+silkit/util/HandlerId.hpp
+../SilKit/include/silkit/services/silkit/util/HandlerId.hpp
+
+../SilKit/include/silkit/util/HandlerId.hpp
+cstdint
+-
+
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/SilKit/source/util/LabelMatching.cpp
+LabelMatching.hpp
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/SilKit/source/util/LabelMatching.hpp
+Optional.hpp
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/SilKit/source/util/Optional.hpp
+
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/SilKit/source/util/LabelMatching.hpp
+vector
+-
+silkit/services/datatypes.hpp
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/SilKit/source/util/silkit/services/datatypes.hpp
+
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/SilKit/source/util/Optional.hpp
+

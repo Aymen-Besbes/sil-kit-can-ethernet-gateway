@@ -1,0 +1,40 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../SilKit/source/extensions/SilKitExtensionApi/ISilKitExtension.hpp
+
+../SilKit/source/extensions/SilKitExtensionApi/SilKitExtensionABI.h
+stdint.h
+-
+stddef.h
+-
+
+../SilKit/source/extensions/SilKitExtensionApi/SilKitExtensionBase.hpp
+cstdint
+-
+SilKitExtensionABI.h
+../SilKit/source/extensions/SilKitExtensionApi/SilKitExtensionABI.h
+ISilKitExtension.hpp
+../SilKit/source/extensions/SilKitExtensionApi/ISilKitExtension.hpp
+
+../SilKit/source/extensions/SilKitExtensionApi/SilKitExtensionMacros.hpp
+SilKitExtensionABI.h
+../SilKit/source/extensions/SilKitExtensionApi/SilKitExtensionABI.h
+SilKitExtensionUtils.hpp
+../SilKit/source/extensions/SilKitExtensionApi/SilKitExtensionUtils.hpp
+
+../SilKit/source/extensions/SilKitExtensionApi/SilKitExtensionUtils.hpp
+cstdint
+-
+
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/SilKit/source/extensions/Tests/WrongVersionExtension.cpp
+SilKitExtensionBase.hpp
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/SilKit/source/extensions/Tests/SilKitExtensionBase.hpp
+SilKitExtensionMacros.hpp
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/SilKit/source/extensions/Tests/SilKitExtensionMacros.hpp
+

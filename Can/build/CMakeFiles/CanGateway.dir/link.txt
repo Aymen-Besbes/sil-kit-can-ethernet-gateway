@@ -1,0 +1,1 @@
+/usr/bin/c++  -g   CMakeFiles/CanGateway.dir/gateway.cpp.o CMakeFiles/CanGateway.dir/ethernetReader.cpp.o  -o CanGateway  -Wl,-rpath,/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit/lib /home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit/lib/libSilKitd.so -lpthread 

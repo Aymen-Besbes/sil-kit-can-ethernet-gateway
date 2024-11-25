@@ -1,0 +1,1 @@
+/usr/bin/c++  -O3 -DNDEBUG   CMakeFiles/sil-kit-system-controller.dir/SystemController.cpp.o ../../SilKit/source/util/CMakeFiles/O_SilKit_Util_SignalHandler.dir/SignalHandler.cpp.o  -o ../../Release/sil-kit-system-controller  -Wl,-rpath,/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/build/Release: ../../Release/libSilKit.so -lpthread 

@@ -1,0 +1,44 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../SilKit/include/silkit/participant/exception.hpp
+stdexcept
+-
+string
+-
+
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/SilKit/source/util/Filesystem.cpp
+silkit/participant/exception.hpp
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/SilKit/source/util/silkit/participant/exception.hpp
+Filesystem.hpp
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/SilKit/source/util/Filesystem.hpp
+array
+-
+sstream
+-
+windows.h
+-
+direct.h
+-
+unistd.h
+-
+stdio.h
+-
+sys/stat.h
+-
+sys/types.h
+-
+errno.h
+-
+string.h
+-
+
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/SilKit/source/util/Filesystem.hpp
+string
+-
+

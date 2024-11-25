@@ -1,0 +1,3 @@
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/Can/build/CMakeFiles/rebuild_cache.dir
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/Can/build/CMakeFiles/edit_cache.dir
+/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/Can/build/CMakeFiles/CanGateway.dir
