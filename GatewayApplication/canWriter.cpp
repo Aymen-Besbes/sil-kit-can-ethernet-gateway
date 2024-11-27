@@ -83,10 +83,19 @@ void SendFrame(ICanController* controller, ILogger* logger)
     std::vector<uint8_t> payloadBytes;
     payloadBytes.resize(payloadStr.size());
     std::copy(payloadStr.begin(), payloadStr.end(), payloadBytes.begin());
-
+    payloadBytes = {0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xbb,0xaa};
     canFrame.dataField = payloadBytes;
     canFrame.dlc = static_cast<uint16_t>(canFrame.dataField.size());
 
+    std::cout << ">> Sending Can Frame to Gateway" << canFrame.dataField.size()
+           << " Bytes" << std::endl;
+    for (const unsigned char &byte : canFrame.dataField)
+    {
+        std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << ' ';
+    }
+    std::cout << std::dec << std::endl;
+    std::cout << "****************************************" << std::endl;
+    
     void* const userContext = reinterpret_cast<void *>(static_cast<intptr_t>(currentMessageId));
 
     controller->SendFrame(std::move(canFrame), userContext);
@@ -160,7 +169,7 @@ int main(int argc, char** argv)
         auto participant = SilKit::CreateParticipant(participantConfiguration, participantName, registryUri);
 
         auto* logger = participant->GetLogger();
-        auto* canController = participant->CreateCanController("CAN1", "CAN1");
+        auto* canController = participant->CreateCanController("CAN1", "CAN");
 
         canController->AddFrameTransmitHandler(
             [logger](ICanController* /*ctrl*/, const CanFrameTransmitEvent& ack) {

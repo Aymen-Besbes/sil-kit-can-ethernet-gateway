@@ -122,9 +122,14 @@ void FrameHandler(IEthernetController* /*controller*/, const EthernetFrameEvent&
 {
     auto frame = frameEvent.frame;
     auto payload = GetPayloadStringFromFrame(frame);
-    std::cout << ">> Ethernet frame: \""
-              << payload
-              << "\"" << std::endl;
+    std::cout << ">> Ethernet frame is received from [Gateway] with " << frame.raw.size()
+           << " Bytes" << std::endl;
+    for (const unsigned char &byte : frame.raw)
+    {
+        std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << ' ';
+    }
+    std::cout << std::dec << std::endl;
+    std::cout << "****************************************" << std::endl;
 }
 
 void SendFrame(IEthernetController* controller, const EthernetMac& from, const EthernetMac& to,const char* framePayload)

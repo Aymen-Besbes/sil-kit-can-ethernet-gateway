@@ -36,15 +36,9 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #include "silkit/SilKit.hpp"
 #endif
 #include "silkit/SilKitVersion.hpp"
-
 #include "silkit/services/all.hpp"
 #include "silkit/services/orchestration/all.hpp"
 #include "silkit/services/orchestration/string_utils.hpp"
-
-
-using namespace SilKit::Services::Orchestration;
-using namespace SilKit::Services::Ethernet;
-
 using namespace std::chrono_literals;
 #include "silkit/SilKit.hpp"
 #include "silkit/services/logging/ILogger.hpp"
@@ -52,12 +46,13 @@ using namespace std::chrono_literals;
 #include "silkit/services/orchestration/string_utils.hpp"
 #include "silkit/services/can/all.hpp"
 #include "silkit/services/can/string_utils.hpp"
-
+#include <mutex>
 using namespace SilKit::Services::Orchestration;
 using namespace SilKit::Services::Can;
 using namespace SilKit::Services::Logging;
-
 using namespace std::chrono_literals;
+using namespace SilKit::Services::Orchestration;
+using namespace SilKit::Services::Ethernet;
 
 namespace std {
 namespace chrono {
@@ -67,11 +62,18 @@ std::ostream& operator<<(std::ostream& out, nanoseconds timestamp)
     out << seconds.count() << "s";
     return out;
 }
-} // namespace chrono
-} // namespace std
+}
+}
 
+std::mutex payloadMutex;
+std::vector<uint8_t> GlobalPayload={0x1};
 
-std::string GlobalPayload="";
+/**
+ * @brief 
+ * 
+ * @param frameEvent 
+ * @param logger 
+ */
 void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
 {
     std::string payload(frameEvent.frame.dataField.begin(), frameEvent.frame.dataField.end());
@@ -79,14 +81,26 @@ void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
     buffer << ">> CAN frame: canId=" << frameEvent.frame.canId
            << " timestamp=" << frameEvent.timestamp
            << " \"" << payload << "\"";
+    
+    std::cout << ">> Receiving Can Frame from CanWriter" << frameEvent.frame.dataField.size()
+           << " Bytes" << std::endl;
+    for (const unsigned char &byte : frameEvent.frame.dataField)
+    {
+        std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << ' ';
+    }
+    std::cout << std::dec << std::endl;
+    std::cout << "---------------------------------------" << std::endl;
     logger->Info(buffer.str());
-    GlobalPayload = payload;
+    std::cout<<"Reading frame from CanReader"<<std::endl;
+    std::lock_guard<std::mutex> lock(payloadMutex);
+    GlobalPayload = std::vector<uint8_t>(frameEvent.frame.dataField.begin(), frameEvent.frame.dataField.end());
 }
 
 
 
 
-/************************************************* */
+
+/* ************************************************ */
 
 using namespace SilKit::Services::Orchestration;
 using namespace SilKit::Services::Ethernet;
@@ -108,26 +122,17 @@ std::vector<uint8_t> CreateFrame(const EthernetMac& destinationAddress, const Et
                                  const std::vector<uint8_t>& payload)
 {
     const uint16_t etherType = 0x0000;  // no protocol
-
-    //std::vector<uint8_t> raw;
     std::vector<uint8_t> raw = {0x01, 0x00, 0x5e, 0x60, 0xe0, 0xf5, 0x8c, 0x16, 0x45, 0x04, 0x10, 0xa4, 0x08, 0x00, 0x45, 0x00,
                                                0x00, 0x64, 0x2b, 0x77, 0x40, 0x00, 0x01, 0x11, 0xcc, 0x28, 0xac, 0x10, 0x14, 0x03, 0xe0, 0xe0,
                                                0xe0, 0xf5, 0x77, 0x1a, 0x77, 0x1a, 0x00, 0x50, 0x82, 0x4b};
-
-    // std::copy(destinationAddress.begin(), destinationAddress.end(), std::back_inserter(raw));
-    // std::copy(sourceAddress.begin(), sourceAddress.end(), std::back_inserter(raw));
-    // auto etherTypeBytes = reinterpret_cast<const uint8_t*>(&etherType);
-    // raw.push_back(etherTypeBytes[1]);  // We assume our platform to be little-endian
-    // raw.push_back(etherTypeBytes[0]);
     std::copy(payload.begin(), payload.end(), std::back_inserter(raw));
-
     return raw;
 }
 
 std::string GetPayloadStringFromFrame(const EthernetFrame& frame)
 {
     const size_t FrameHeaderSize = 2 * sizeof(EthernetMac) + sizeof(EtherType);
-
+    std::lock_guard<std::mutex> lock(payloadMutex);
     std::vector<uint8_t> payload;
     payload.insert(payload.end(), frame.raw.begin() + FrameHeaderSize, frame.raw.end());
     std::string payloadString(payload.begin(), payload.end());
@@ -165,24 +170,40 @@ void FrameTransmitHandler(IEthernetController* /*controller*/, const EthernetFra
     }
 }
 
-void SendFrame(IEthernetController* controller, const EthernetMac& from, const EthernetMac& to,const char* framePayload)
+
+void SendFrame(IEthernetController* controller, const EthernetMac& from, const EthernetMac& to,const std::vector<uint8_t> framePayload)
 {
     static int frameId = 0;
     std::stringstream stream;
-    stream << framePayload<<"frameid:" << frameId++ << ")"
-              "----------------------------------------------------"; // ensure that the payload is long enough to constitute a valid Ethernet frame
-
+    stream <<"frameid:" << frameId++ << ")"
+            "----------------------------------------------------"; // ensure that the payload is long enough to constitute a valid Ethernet frame
     auto payloadString = stream.str();
     std::vector<uint8_t> payload(payloadString.size() + 1);
     memcpy(payload.data(), payloadString.c_str(), payloadString.size() + 1);
-
+    std::cout<<"Ethernet payload::::"<<std::endl;
     const auto userContext = reinterpret_cast<void *>(static_cast<intptr_t>(frameId));
-
-    auto frame = CreateFrame(to, from, payload);
+    auto frame = CreateFrame(to, from, framePayload);
+    std::lock_guard<std::mutex> lock(payloadMutex);
     controller->SendFrame(EthernetFrame{frame}, userContext);
+
     std::cout << "<< ETH Frame sent with userContext=" << userContext << std::endl;
+    std::cout << ">> Sending Ethernet Frame from Gateway to Ethernet Reader " << frame.size()
+           << " Bytes" << std::endl;
+
+    for (const unsigned char &byte : frame)
+    {
+        std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << ' ';
+    }
+    std::cout << std::dec << std::endl;
+    std::cout << "****************************************" << std::endl;
+
+    
+
 }
 /************************************************* */
+void EthernetWriter(){
+    
+}
 
 /**************************************************************************************************
  * Main Function
@@ -210,8 +231,8 @@ int main(int argc, char** argv)
     }
 
     std::string participantName(argv[2]);
-
-    if (participantName != "EthernetWriter" && participantName != "CanReader")
+    
+    if (participantName != "Gateway")
     {
         std::cout << "Wrong participant name provided. Use either \"CanWriter\" or \"CanReader\"." << std::endl;
         return -1;
@@ -243,15 +264,14 @@ int main(int argc, char** argv)
         auto participantConfiguration = SilKit::Config::ParticipantConfigurationFromFile(participantConfigurationFilename);
         auto sleepTimePerTick = 1000ms;
 
-        std::cout << "Creating participant '" << participantName << "' with registry " << registryUri << std::endl;
+        std::cout << "Creating participant Gateway with registry " << registryUri << std::endl;
 
-        auto participant = SilKit::CreateParticipant(participantConfiguration, participantName, registryUri);
-
+        auto participant = SilKit::CreateParticipant(participantConfiguration, "Gateway", registryUri);
         auto* logger = participant->GetLogger();
-        std::cout<<"logger::::::"<<logger<<std::endl;
-        auto* canController = participant->CreateCanController("CAN1", "CAN1");
-        auto* ethernetController = participant->CreateEthernetController("Eth1", "Eth1");
 
+        auto* ethernetController = participant->CreateEthernetController("Eth1", "Eth1");
+        auto* canController = participant->CreateCanController("CAN1", "CAN");
+        
         ethernetController->AddFrameTransmitHandler(&FrameTransmitHandler);
         canController->AddFrameHandler(
             [logger](ICanController* /*ctrl*/, const CanFrameEvent& frameEvent) {
@@ -259,10 +279,8 @@ int main(int argc, char** argv)
             });
         
         auto operationMode = (runSync ? OperationMode::Coordinated : OperationMode::Autonomous);
-
         auto* lifecycleService = participant->CreateLifecycleService({operationMode});
-        //auto* lifecycleService2 = participant->CreateLifecycleService({operationMode});
-        // Observe state changes
+       
         lifecycleService->SetStopHandler([]() {
             std::cout << "Stop handler called" << std::endl;
         });
@@ -272,73 +290,57 @@ int main(int argc, char** argv)
         lifecycleService->SetAbortHandler([](auto lastState) {
             std::cout << "Abort handler called while in state " << lastState << std::endl;
         });
-
-
-        // Observe state changes
-        //lifecycleService2->SetStopHandler([]() { std::cout << "Stop handler called" << std::endl; });
-        //lifecycleService2->SetShutdownHandler([]() { std::cout << "Shutdown handler called" << std::endl; });
-        //lifecycleService2->SetAbortHandler(
-        //    [](auto lastState) { std::cout << "Abort handler called while in state " << lastState << std::endl; });
-
-        if (runSync)
-        {
+        std::cout<<"Hi from can lifecycle"<<std::endl;
+        std::atomic<bool> isStopRequested = {false};
+        std::thread workerThread;
+        std::promise<void> promiseObj;
+        std::future<void> futureObj = promiseObj.get_future();
             
-        }
-        else
-        {
-            std::atomic<bool> isStopRequested = {false};
-            std::thread workerThread;
+        lifecycleService->SetCommunicationReadyHandler([&]() {
+            std::cout << "Communication ready for  Gateway" << std::endl;
+            canController->SetBaudRate(10'000, 1'000'000, 2'000'000);
 
-            std::promise<void> promiseObj;
-            std::future<void> futureObj = promiseObj.get_future();
-            
-            lifecycleService->SetCommunicationReadyHandler([&]() {
-                std::cout << "Communication ready for " << participantName << std::endl;
-                canController->SetBaudRate(10'000, 1'000'000, 2'000'000);
-
-                workerThread = std::thread{[&]() {
-                    futureObj.get();
-                    while (lifecycleService->State() == ParticipantState::ReadyToRun ||
-                           lifecycleService->State() == ParticipantState::Running)
-                    {
-                        if (participantName == "EthernetWriter")
-                        {
-                            SendFrame(ethernetController, WriterMacAddr, BroadcastMacAddr,GlobalPayload.c_str());
-                            std::cout<<"global:::::"<<GlobalPayload<<"global.cstr"<<GlobalPayload.c_str()<<std::endl;
-                        }
+            workerThread = std::thread{[&]() {
+                futureObj.get();
+                while (lifecycleService->State() == ParticipantState::ReadyToRun ||
+                        lifecycleService->State() == ParticipantState::Running)
+                {       
+                        //std::lock_guard<std::mutex> lock(payloadMutex);
+                        SendFrame(ethernetController, WriterMacAddr, BroadcastMacAddr,GlobalPayload);
+                        std::cout<<"Frame sent from Ethernet Writer to Ethernet Reader..."<<std::endl;
                         std::this_thread::sleep_for(sleepTimePerTick);
-                    }
-                    if (!isStopRequested)
-                    {
-                        std::cout << "Press enter to end the process..." << std::endl;
-                    }
-                }};
-                canController->Start();
-                ethernetController->Activate();
-            });
+                }
+                if (!isStopRequested)
+                {
+                    std::cout << "Press enter to end the process..." << std::endl;
+                }
+            }};
+            canController->Start();
+            ethernetController->Activate();
+        });
 
-            lifecycleService->SetStartingHandler([&]() {
-                promiseObj.set_value();
-            });
+        lifecycleService->SetStartingHandler([&]() {
+            promiseObj.set_value();
+        });
 
-            lifecycleService->StartLifecycle();
-            std::cout << "Press enter to leave the simulation..." << std::endl;
-            std::cin.ignore();
+        lifecycleService->StartLifecycle();
+        std::cout << "Press enter to leave the simulation..." << std::endl;
+        std::cin.ignore();
 
-            isStopRequested = true;
-            if (lifecycleService->State() == ParticipantState::Running || 
-                lifecycleService->State() == ParticipantState::Paused)
-            {
-                std::cout << "User requested to stop in state " << lifecycleService->State() << std::endl;
-                lifecycleService->Stop("User requested to stop");
-            }
-
-            if (workerThread.joinable())
-            {
-                workerThread.join();
-            }
-            std::cout << "The participant has shut down and left the simulation" << std::endl;
+        isStopRequested = true;
+        if (lifecycleService->State() == ParticipantState::Running || 
+            lifecycleService->State() == ParticipantState::Paused)
+        {
+            std::cout << "User requested to stop in state " << lifecycleService->State() << std::endl;
+            lifecycleService->Stop("User requested to stop");
         }
+
+        if (workerThread.joinable())
+        {
+            workerThread.join();
+        }
+        std::cout << "The participant has shut down and left the simulation" << std::endl;
+        
     }
     catch (const SilKit::ConfigurationError& error)
     {
@@ -354,6 +356,6 @@ int main(int argc, char** argv)
         std::cin.ignore();
         return -3;
     }
-
+    
     return 0;
 }
