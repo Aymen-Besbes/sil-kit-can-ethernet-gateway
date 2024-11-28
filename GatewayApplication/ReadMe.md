@@ -1,4 +1,4 @@
-# README for SilKit Demo Applications
+# Overview
 
 This README provides an overview of how to use the SilKit demo applications for communication across CAN, Ethernet, and Gateway protocols. The demo applications include:
 
@@ -10,6 +10,10 @@ This README provides an overview of how to use the SilKit demo applications for 
 Each of these components can be run using a `.yaml` configuration file, and they support asynchronous operation with the `--async` flag.
 
 ---
+# Application Architecture
+
+
+![plot](./Gateway.png)
 
 ## 1. Registry
 
