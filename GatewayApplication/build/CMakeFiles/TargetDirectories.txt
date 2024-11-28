@@ -1,5 +1,0 @@
-/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/GatewayApplication/build/CMakeFiles/rebuild_cache.dir
-/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/GatewayApplication/build/CMakeFiles/edit_cache.dir
-/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/GatewayApplication/build/CMakeFiles/Gateway.dir
-/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/GatewayApplication/build/CMakeFiles/EthernetReader.dir
-/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/GatewayApplication/build/CMakeFiles/CanWriter.dir

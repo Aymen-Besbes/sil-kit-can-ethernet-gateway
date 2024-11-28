@@ -1,9 +1,0 @@
-Description: Ethernet Writer with TraceSink Sink1
-EthernetControllers:
-- Name: Eth1
-  UseTraceSinks: [ TraceSink1 ]
-Tracing:
-  TraceSinks:
-    - Name: TraceSink1
-      Type: PcapFile
-      OutputPath: vecu_trace.pcap

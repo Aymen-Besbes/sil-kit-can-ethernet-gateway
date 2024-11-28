@@ -63,9 +63,6 @@ void FrameTransmitHandler(const CanFrameTransmitEvent& ack, ILogger* logger)
     logger->Info(buffer.str());
 }
 
-//void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
-
-
 void SendFrame(ICanController* controller, ILogger* logger,std::vector<uint8_t> payloadBytes)
 {
     std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
@@ -76,14 +73,6 @@ void SendFrame(ICanController* controller, ILogger* logger,std::vector<uint8_t> 
 
     static int msgId = 0;
     const auto currentMessageId = msgId++;
-
-    std::stringstream payloadBuilder;
-    payloadBuilder << "CAN " << (currentMessageId % 100);
-    auto payloadStr = payloadBuilder.str();
-
-    
-    //payloadBytes.resize(payloadStr.size());
-    //std::copy(payloadStr.begin(), payloadStr.end(), payloadBytes.begin());
     canFrame.dataField = payloadBytes;
     canFrame.dlc = static_cast<uint16_t>(canFrame.dataField.size());
 
@@ -105,38 +94,27 @@ void SendFrame(ICanController* controller, ILogger* logger,std::vector<uint8_t> 
 }
 
 
-
-
-
 /**************************************************************************************************
  * Main Function
  **************************************************************************************************/
 
 int main(int argc, char** argv)
 {
-    if (argc < 3)
+    if (argc < 2)
     {
         std::cerr << "Missing arguments! Start demo with: " << argv[0]
-                  << " <ParticipantConfiguration.yaml|json> <ParticipantName> [RegistryUri] [--async]" << std::endl
-                  << "Use \"CanWriter\" or \"CanReader\" as <ParticipantName>." << std::endl;
+                  << " <ParticipantConfiguration.yaml|json> <ParticipantName> [RegistryUri] [--async]" << std::endl;
         return -1;
     }
 
-    if (argc > 5)
+    if (argc > 4)
     {
         std::cerr << "Too many arguments! Start demo with: " << argv[0]
-                  << " <ParticipantConfiguration.yaml|json> <ParticipantName> [RegistryUri] [--async]" << std::endl
-                  << "Use \"CanWriter\" or \"CanReader\" as <ParticipantName>." << std::endl;
+                  << " <ParticipantConfiguration.yaml|json> <ParticipantName> [RegistryUri] [--async]" << std::endl;
         return -1;
     }
 
-    std::string participantName(argv[2]);
-
-    if (participantName != "CanWriter" && participantName != "CanReader")
-    {
-        std::cout << "Wrong participant name provided. Use either \"CanWriter\" or \"CanReader\"." << std::endl;
-        return -1;
-    }
+    std::string participantName = "CanWriter";
 
     try
     {
@@ -147,7 +125,7 @@ int main(int argc, char** argv)
         bool runSync = true;
 
         std::vector<std::string> args;
-        std::copy((argv + 3), (argv + argc), std::back_inserter(args));
+        std::copy((argv + 2), (argv + argc), std::back_inserter(args));
 
         for (auto arg : args)
         {
@@ -191,93 +169,57 @@ int main(int argc, char** argv)
         lifecycleService->SetAbortHandler([](auto lastState) {
             std::cout << "Abort handler called while in state " << lastState << std::endl;
         });
+
+        std::atomic<bool> isStopRequested = {false};
+        std::thread workerThread;
+
+        std::promise<void> promiseObj;
+        std::future<void> futureObj = promiseObj.get_future();
+        lifecycleService->SetCommunicationReadyHandler([&]() {
+            std::cout << "Communication ready for " << participantName << std::endl;
+            canController->SetBaudRate(10'000, 1'000'000, 2'000'000);
+
+            workerThread = std::thread{[&]() {
+                futureObj.get();
+                while (lifecycleService->State() == ParticipantState::ReadyToRun ||
+                        lifecycleService->State() == ParticipantState::Running)
+                {
+                    std::vector<uint8_t> payloadBytes = {0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xbb,0xaa};
+                    SendFrame(canController, logger,payloadBytes);
+                    std::vector<uint8_t> payloadBytes2 = {0xcc,0xcc,0xcc,0xcc,0xcc,0xcc,0xbb,0xaa};
+                    SendFrame(canController, logger,payloadBytes2);
+                    std::this_thread::sleep_for(sleepTimePerTick);
+                }
+                if (!isStopRequested)
+                {
+                    std::cout << "Press enter to end the process..." << std::endl;
+                }
+            }};
+            canController->Start();
+        });
+
+        lifecycleService->SetStartingHandler([&]() {
+            promiseObj.set_value();
+        });
+
+        lifecycleService->StartLifecycle();
+        std::cout << "Press enter to leave the simulation..." << std::endl;
+        std::cin.ignore();
+
+        isStopRequested = true;
+        if (lifecycleService->State() == ParticipantState::Running || 
+            lifecycleService->State() == ParticipantState::Paused)
+        {
+            std::cout << "User requested to stop in state " << lifecycleService->State() << std::endl;
+            lifecycleService->Stop("User requested to stop");
+        }
+
+        if (workerThread.joinable())
+        {
+            workerThread.join();
+        }
+        std::cout << "The participant has shut down and left the simulation" << std::endl;
         
-
-        if (runSync)
-        {
-            lifecycleService->SetCommunicationReadyHandler([canController, &participantName]() {
-                std::cout << "Communication ready for " << participantName << std::endl;
-                canController->SetBaudRate(10'000, 1'000'000, 2'000'000);
-                canController->Start();
-            });
-
-            auto* timeSyncService = lifecycleService->CreateTimeSyncService();
-
-            if (participantName == "CanWriter")
-            {
-                timeSyncService->SetSimulationStepHandler(
-                    [canController, logger, sleepTimePerTick](std::chrono::nanoseconds now,
-                                                              std::chrono::nanoseconds duration) {
-                        std::cout << "now=" << now << ", duration=" << duration << std::endl;
-                        std::vector<uint8_t> payloadBytes = {0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xbb,0xaa};
-                        SendFrame(canController, logger,payloadBytes);
-                        std::this_thread::sleep_for(sleepTimePerTick);
-                    }, 5ms);
-            }
-            
-
-            auto finalStateFuture = lifecycleService->StartLifecycle();
-            auto finalState = finalStateFuture.get();
-
-            std::cout << "Simulation stopped. Final State: " << finalState << std::endl;
-            std::cout << "Press enter to end the process..." << std::endl;
-            std::cin.ignore();
-        }
-        else
-        {
-            std::atomic<bool> isStopRequested = {false};
-            std::thread workerThread;
-
-            std::promise<void> promiseObj;
-            std::future<void> futureObj = promiseObj.get_future();
-            lifecycleService->SetCommunicationReadyHandler([&]() {
-                std::cout << "Communication ready for " << participantName << std::endl;
-                canController->SetBaudRate(10'000, 1'000'000, 2'000'000);
-
-                workerThread = std::thread{[&]() {
-                    futureObj.get();
-                    while (lifecycleService->State() == ParticipantState::ReadyToRun ||
-                           lifecycleService->State() == ParticipantState::Running)
-                    {
-                        if (participantName == "CanWriter")
-                        {   
-                            std::vector<uint8_t> payloadBytes = {0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xbb,0xaa};
-                            SendFrame(canController, logger,payloadBytes);
-                            std::vector<uint8_t> payloadBytes2 = {0xcc,0xcc,0xcc,0xcc,0xcc,0xcc,0xbb,0xaa};
-                            SendFrame(canController, logger,payloadBytes2);
-                        }
-                        std::this_thread::sleep_for(sleepTimePerTick);
-                    }
-                    if (!isStopRequested)
-                    {
-                        std::cout << "Press enter to end the process..." << std::endl;
-                    }
-                }};
-                canController->Start();
-            });
-
-            lifecycleService->SetStartingHandler([&]() {
-                promiseObj.set_value();
-            });
-
-            lifecycleService->StartLifecycle();
-            std::cout << "Press enter to leave the simulation..." << std::endl;
-            std::cin.ignore();
-
-            isStopRequested = true;
-            if (lifecycleService->State() == ParticipantState::Running || 
-                lifecycleService->State() == ParticipantState::Paused)
-            {
-                std::cout << "User requested to stop in state " << lifecycleService->State() << std::endl;
-                lifecycleService->Stop("User requested to stop");
-            }
-
-            if (workerThread.joinable())
-            {
-                workerThread.join();
-            }
-            std::cout << "The participant has shut down and left the simulation" << std::endl;
-        }
     }
     catch (const SilKit::ConfigurationError& error)
     {

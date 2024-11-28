@@ -27,7 +27,6 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #include <string>
 #include <thread>
 #include <vector>
-
 #ifdef SILKIT_HOURGLASS
 #include "silkit/hourglass/SilKit.hpp"
 #include "silkit/hourglass/config/IParticipantConfiguration.hpp"
@@ -35,15 +34,11 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #include "silkit/SilKit.hpp"
 #endif
 #include "silkit/SilKitVersion.hpp"
-
 #include "silkit/services/all.hpp"
 #include "silkit/services/orchestration/all.hpp"
 #include "silkit/services/orchestration/string_utils.hpp"
-
-
 using namespace SilKit::Services::Orchestration;
 using namespace SilKit::Services::Ethernet;
-
 using namespace std::chrono_literals;
 
 // Field in a frame that can indicate the protocol, payload size, or the start of a VLAN tag
@@ -55,26 +50,6 @@ std::ostream& operator<<(std::ostream& out, std::chrono::nanoseconds timestamp)
     auto seconds = std::chrono::duration_cast<std::chrono::duration<double, std::ratio<1, 1>>>(timestamp);
     out << seconds.count() << "s";
     return out;
-}
-
-std::vector<uint8_t> CreateFrame(const EthernetMac& destinationAddress, const EthernetMac& sourceAddress,
-                                 const std::vector<uint8_t>& payload)
-{
-    const uint16_t etherType = 0x0000;  // no protocol
-
-    //std::vector<uint8_t> raw;
-    std::vector<uint8_t> raw = {0x01, 0x00, 0x5e, 0x60, 0xe0, 0xf5, 0x8c, 0x16, 0x45, 0x04, 0x10, 0xa4, 0x08, 0x00, 0x45, 0x00,
-                                               0x00, 0x64, 0x2b, 0x77, 0x40, 0x00, 0x01, 0x11, 0xcc, 0x28, 0xac, 0x10, 0x14, 0x03, 0xe0, 0xe0,
-                                               0xe0, 0xf5, 0x77, 0x1a, 0x77, 0x1a, 0x00, 0x50, 0x82, 0x4b};
-
-    // std::copy(destinationAddress.begin(), destinationAddress.end(), std::back_inserter(raw));
-    // std::copy(sourceAddress.begin(), sourceAddress.end(), std::back_inserter(raw));
-    // auto etherTypeBytes = reinterpret_cast<const uint8_t*>(&etherType);
-    // raw.push_back(etherTypeBytes[1]);  // We assume our platform to be little-endian
-    // raw.push_back(etherTypeBytes[0]);
-    std::copy(payload.begin(), payload.end(), std::back_inserter(raw));
-
-    return raw;
 }
 
 std::string GetPayloadStringFromFrame(const EthernetFrame& frame)
@@ -120,8 +95,9 @@ void FrameTransmitHandler(IEthernetController* /*controller*/, const EthernetFra
 
 void FrameHandler(IEthernetController* /*controller*/, const EthernetFrameEvent& frameEvent)
 {
+    std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
     auto frame = frameEvent.frame;
-    auto payload = GetPayloadStringFromFrame(frame);
+    //auto payload = GetPayloadStringFromFrame(frame);
     std::cout << ">> Ethernet frame is received from [Gateway] with " << frame.raw.size()
            << " Bytes" << std::endl;
     for (const unsigned char &byte : frame.raw)
@@ -129,25 +105,7 @@ void FrameHandler(IEthernetController* /*controller*/, const EthernetFrameEvent&
         std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << ' ';
     }
     std::cout << std::dec << std::endl;
-    std::cout << "****************************************" << std::endl;
-}
-
-void SendFrame(IEthernetController* controller, const EthernetMac& from, const EthernetMac& to,const char* framePayload)
-{
-    static int frameId = 0;
-    std::stringstream stream;
-    stream << framePayload<<"frameid:" << frameId++ << ")"
-              "----------------------------------------------------"; // ensure that the payload is long enough to constitute a valid Ethernet frame
-
-    auto payloadString = stream.str();
-    std::vector<uint8_t> payload(payloadString.size() + 1);
-    memcpy(payload.data(), payloadString.c_str(), payloadString.size() + 1);
-
-    const auto userContext = reinterpret_cast<void *>(static_cast<intptr_t>(frameId));
-
-    auto frame = CreateFrame(to, from, payload);
-    controller->SendFrame(EthernetFrame{frame}, userContext);
-    std::cout << "<< ETH Frame sent with userContext=" << userContext << std::endl;
+    std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
 }
 
 /**************************************************************************************************
@@ -159,29 +117,21 @@ int main(int argc, char** argv)
     EthernetMac WriterMacAddr = {0xF6, 0x04, 0x68, 0x71, 0xAA, 0xC1};
     EthernetMac BroadcastMacAddr = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
-    if (argc < 3)
+    if (argc < 2)
     {
         std::cerr << "Missing arguments! Start demo with: " << argv[0]
-                  << " <ParticipantConfiguration.yaml|json> <ParticipantName> [RegistryUri] [--async]" << std::endl
-                  << "Use \"EthernetWriter\" or \"EthernetReader\" as <ParticipantName>." << std::endl;
+                  << " <ParticipantConfiguration.yaml|json> <ParticipantName> [RegistryUri] [--async]" << std::endl;
         return -1;
     }
 
-    if (argc > 5)
+    if (argc > 4)
     {
         std::cerr << "Too many arguments! Start demo with: " << argv[0]
-                  << " <ParticipantConfiguration.yaml|json> <ParticipantName> [RegistryUri] [--async]" << std::endl
-                  << "Use \"EthernetWriter\" or \"EthernetReader\" as <ParticipantName>." << std::endl;
+                  << " <ParticipantConfiguration.yaml|json> <ParticipantName> [RegistryUri] [--async]" << std::endl;
         return -1;
     }
 
-    std::string participantName(argv[2]);
-    if (participantName != "EthernetWriter" && participantName != "EthernetReader")
-    {
-        std::cout << "Wrong participant name provided. Use either \"EthernetWriter\" or \"EthernetReader\"."
-                  << std::endl;
-        return 1;
-    }
+    std::string participantName = "EthernetReader";
     std::cout << "SIL Kit Version: " << SilKit::Version::String() << std::endl;
     try
     {
@@ -192,7 +142,7 @@ int main(int argc, char** argv)
 
         // skip argv[0] and collect all arguments
         std::vector<std::string> args;
-        std::copy((argv + 3), (argv + argc), std::back_inserter(args));
+        std::copy((argv + 2), (argv + argc), std::back_inserter(args));
 
         for (auto arg : args)
         {
@@ -222,7 +172,7 @@ int main(int argc, char** argv)
 
         ethernetController->AddFrameHandler(&FrameHandler);
         //ethernetController->AddFrameTransmitHandler(&FrameTransmitHandler);
-
+        
         auto operationMode = (runSync ? OperationMode::Coordinated : OperationMode::Autonomous);
         auto* lifecycleService = participant->CreateLifecycleService({operationMode});
         
@@ -237,74 +187,45 @@ int main(int argc, char** argv)
             std::cout << "Abort handler called while in state " << lastState << std::endl;
         });
 
-        if (runSync)
+        std::promise<void> startHandlerPromise;
+        auto startHandlerFuture = startHandlerPromise.get_future();
+        std::atomic<bool> isStopRequested = {false};
+        std::thread workerThread;
+
+        lifecycleService->SetCommunicationReadyHandler([&]() {
+            std::cout << "Communication ready handler called for " << participantName << std::endl;
+            workerThread = std::thread{[&]() {
+                startHandlerFuture.get();
+                if (!isStopRequested)
+                {
+                    std::cout << "Press enter to end the process..." << std::endl;
+                }
+                            }};
+            ethernetController->Activate();
+        });
+
+        lifecycleService->SetStartingHandler([&]() {
+            startHandlerPromise.set_value();
+        });
+
+        lifecycleService->StartLifecycle();
+        std::cout << "Press enter to leave the simulation..." << std::endl;
+        std::cin.ignore();
+
+        isStopRequested = true;
+        if (lifecycleService->State() == ParticipantState::Running || 
+            lifecycleService->State() == ParticipantState::Paused)
         {
-            auto* timeSyncService = lifecycleService->CreateTimeSyncService();
-
-            // Set a CommunicationReady Handler
-            lifecycleService->SetCommunicationReadyHandler([&participantName, ethernetController]() {
-                std::cout << "Communication ready handler called for " << participantName << std::endl;
-                ethernetController->Activate();
-            });
-
-            
-            
-            timeSyncService->SetSimulationStepHandler(
-                    [](std::chrono::nanoseconds now, std::chrono::nanoseconds /*duration*/) {
-                        std::cout << "now=" << std::chrono::duration_cast<std::chrono::milliseconds>(now).count()
-                                  << "ms" << std::endl;
-                        std::this_thread::sleep_for(300ms);
-                    }, 1ms);
-            
-
-            auto finalStateFuture = lifecycleService->StartLifecycle();
-            auto finalState = finalStateFuture.get();
-
-            std::cout << "Simulation stopped. Final State: " << finalState << std::endl;
-            std::cout << "Press enter to end the process..." << std::endl;
-            std::cin.ignore();
+            std::cout << "User requested to stop in state " << lifecycleService->State() << std::endl;
+            lifecycleService->Stop("User requested to stop");
         }
-        else
+        if (workerThread.joinable())
         {
-            std::promise<void> startHandlerPromise;
-            auto startHandlerFuture = startHandlerPromise.get_future();
-            std::atomic<bool> isStopRequested = {false};
-            std::thread workerThread;
-
-            lifecycleService->SetCommunicationReadyHandler([&]() {
-                std::cout << "Communication ready handler called for " << participantName << std::endl;
-                workerThread = std::thread{[&]() {
-                    startHandlerFuture.get();
-                    if (!isStopRequested)
-                    {
-                        std::cout << "Press enter to end the process..." << std::endl;
-                    }
-                }};
-                ethernetController->Activate();
-            });
-
-            lifecycleService->SetStartingHandler([&]() {
-                startHandlerPromise.set_value();
-            });
-
-            lifecycleService->StartLifecycle();
-            std::cout << "Press enter to leave the simulation..." << std::endl;
-            std::cin.ignore();
-
-            isStopRequested = true;
-            if (lifecycleService->State() == ParticipantState::Running || 
-                lifecycleService->State() == ParticipantState::Paused)
-            {
-                std::cout << "User requested to stop in state " << lifecycleService->State() << std::endl;
-                lifecycleService->Stop("User requested to stop");
-            }
-            if (workerThread.joinable())
-            {
-                workerThread.join();
-            }
-            std::cout << "The participant has shut down and left the simulation" << std::endl;
+            workerThread.join();
         }
+        std::cout << "The participant has shut down and left the simulation" << std::endl;
     }
+
     catch (const SilKit::ConfigurationError& error)
     {
         std::cerr << "Invalid configuration: " << error.what() << std::endl;

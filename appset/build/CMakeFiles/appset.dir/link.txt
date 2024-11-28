@@ -1,1 +1,0 @@
-/usr/bin/c++  -g   CMakeFiles/appset.dir/participant.cpp.o  -o appset  -Wl,-rpath,/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit/lib /home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit/lib/libSilKitd.so -lpthread 

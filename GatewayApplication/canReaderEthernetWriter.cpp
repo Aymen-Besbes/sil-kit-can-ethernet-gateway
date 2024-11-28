@@ -39,7 +39,6 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #include "silkit/services/all.hpp"
 #include "silkit/services/orchestration/all.hpp"
 #include "silkit/services/orchestration/string_utils.hpp"
-using namespace std::chrono_literals;
 #include "silkit/SilKit.hpp"
 #include "silkit/services/logging/ILogger.hpp"
 #include "silkit/services/orchestration/all.hpp"
@@ -47,16 +46,22 @@ using namespace std::chrono_literals;
 #include "silkit/services/can/all.hpp"
 #include "silkit/services/can/string_utils.hpp"
 #include <mutex>
+#include <queue>
+#include <condition_variable>
 using namespace SilKit::Services::Orchestration;
 using namespace SilKit::Services::Can;
 using namespace SilKit::Services::Logging;
 using namespace std::chrono_literals;
 using namespace SilKit::Services::Orchestration;
 using namespace SilKit::Services::Ethernet;
+using namespace SilKit::Services::Orchestration;
+using namespace SilKit::Services::Ethernet;
 
-#include <queue>
 
-#include <condition_variable>
+// Field in a frame that can indicate the protocol, payload size, or the start of a VLAN tag
+using EtherType = uint16_t;
+using EthernetMac = std::array<uint8_t, 6>;
+
 std::mutex mtx; // Mutex for synchronization
 std::condition_variable cond_var; // Condition variable for producer-consumer signaling
 std::queue<std::vector<uint8_t>> buffer;const unsigned int MAX_BUFFER_SIZE = 10; // Maximum size of the buffer
@@ -72,9 +77,6 @@ std::ostream& operator<<(std::ostream& out, nanoseconds timestamp)
 }
 }
 
-std::mutex payloadMutex;
-std::vector<uint8_t> GlobalPayload={0x1};
-bool received=0;
 
 /**
  * @brief 
@@ -93,7 +95,6 @@ void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
     buffer2 << ">> CAN frame: canId=" << frameEvent.frame.canId
            << " timestamp=" << frameEvent.timestamp
            << " \"" ;
-    
     std::cout << ">> Receiving Can Frame from CanWriter" << frameEvent.frame.dataField.size()
            << "  Bytes:" << std::endl;
     for (const unsigned char &byte : frameEvent.frame.dataField)
@@ -104,8 +105,6 @@ void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
     std::cout << "---------------------------------------" << std::endl;
     logger->Info(buffer2.str());
     std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
-    
-    //std::lock_guard<std::mutex> lock(payloadMutex);
     std::vector<uint8_t> GlobalPayload = std::vector<uint8_t>(frameEvent.frame.dataField.begin(), frameEvent.frame.dataField.end());
     std::unique_lock<std::mutex> lock(mtx); // Lock the mutex
     cond_var.wait(lock, [] { return buffer.size() < MAX_BUFFER_SIZE; }); // Wait until there's space in buffer
@@ -118,20 +117,7 @@ void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
     
 }
 
-
-
-
-
 /* ************************************************ */
-
-using namespace SilKit::Services::Orchestration;
-using namespace SilKit::Services::Ethernet;
-
-using namespace std::chrono_literals;
-
-// Field in a frame that can indicate the protocol, payload size, or the start of a VLAN tag
-using EtherType = uint16_t;
-using EthernetMac = std::array<uint8_t, 6>;
 
 std::ostream& operator<<(std::ostream& out, std::chrono::nanoseconds timestamp)
 {
@@ -149,16 +135,6 @@ std::vector<uint8_t> CreateFrame(const EthernetMac& destinationAddress, const Et
                                                0xe0, 0xf5, 0x77, 0x1a, 0x77, 0x1a, 0x00, 0x50, 0x82, 0x4b};
     std::copy(payload.begin(), payload.end(), std::back_inserter(raw));
     return raw;
-}
-
-std::string GetPayloadStringFromFrame(const EthernetFrame& frame)
-{
-    const size_t FrameHeaderSize = 2 * sizeof(EthernetMac) + sizeof(EtherType);
-    std::lock_guard<std::mutex> lock(payloadMutex);
-    std::vector<uint8_t> payload;
-    payload.insert(payload.end(), frame.raw.begin() + FrameHeaderSize, frame.raw.end());
-    std::string payloadString(payload.begin(), payload.end());
-    return payloadString;
 }
 
 void FrameTransmitHandler(IEthernetController* /*controller*/, const EthernetFrameTransmitEvent& frameTransmitEvent)
@@ -192,16 +168,6 @@ void FrameTransmitHandler(IEthernetController* /*controller*/, const EthernetFra
     }
 }
 
-void consumer() {
-    std::unique_lock<std::mutex> lock(mtx); // Lock the mutex
-    cond_var.wait(lock, [] { return buffer.size() > 0; }); // Wait until there's something in the buffer
-    std::vector<uint8_t> GlobalPayload = buffer.front(); // Get the front payload from buffer
-    buffer.pop(); // Remove the payload from buffer
-    std::cout << "Consuming Payload"<< std::endl; // Output the consumed payload
-    std::cout << "Buffer size after consuming: " << buffer.size() << std::endl << std::endl; // Display buffer size after consuming
-    lock.unlock(); // Unlock the mutex
-    cond_var.notify_one(); // Notify one waiting thread
-}
 void SendFrame(IEthernetController* controller, const EthernetMac& from, const EthernetMac& to)
 {
     std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
@@ -238,10 +204,6 @@ void SendFrame(IEthernetController* controller, const EthernetMac& from, const E
     
 
 }
-/************************************************* */
-void EthernetWriter(){
-    
-}
 
 /**************************************************************************************************
  * Main Function
@@ -252,29 +214,21 @@ int main(int argc, char** argv)
     EthernetMac WriterMacAddr = {0xF6, 0x04, 0x68, 0x71, 0xAA, 0xC1};
     EthernetMac BroadcastMacAddr = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
-    if (argc < 3)
+    if (argc < 2)
     {
         std::cerr << "Missing arguments! Start demo with: " << argv[0]
-                  << " <ParticipantConfiguration.yaml|json> <ParticipantName> [RegistryUri] [--async]" << std::endl
-                  << "Use \"CanWriter\" or \"CanReader\" as <ParticipantName>." << std::endl;
+                  << " <ParticipantConfiguration.yaml|json> <ParticipantName> [RegistryUri] [--async]" << std::endl;
         return -1;
     }
 
-    if (argc > 5)
+    if (argc > 4)
     {
         std::cerr << "Too many arguments! Start demo with: " << argv[0]
-                  << " <ParticipantConfiguration.yaml|json> <ParticipantName> [RegistryUri] [--async]" << std::endl
-                  << "Use \"CanWriter\" or \"CanReader\" as <ParticipantName>." << std::endl;
+                  << " <ParticipantConfiguration.yaml|json> <ParticipantName> [RegistryUri] [--async]" << std::endl;
         return -1;
     }
 
-    std::string participantName(argv[2]);
-    
-    if (participantName != "Gateway")
-    {
-        std::cout << "Wrong participant name provided. Use either \"CanWriter\" or \"CanReader\"." << std::endl;
-        return -1;
-    }
+    std::string participantName = "Gateway";
 
     try
     {
@@ -285,7 +239,7 @@ int main(int argc, char** argv)
         bool runSync = true;
 
         std::vector<std::string> args;
-        std::copy((argv + 3), (argv + argc), std::back_inserter(args));
+        std::copy((argv + 2), (argv + argc), std::back_inserter(args));
 
         for (auto arg : args)
         {
