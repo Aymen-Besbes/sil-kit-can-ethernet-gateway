@@ -66,8 +66,9 @@ void FrameTransmitHandler(const CanFrameTransmitEvent& ack, ILogger* logger)
 //void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
 
 
-void SendFrame(ICanController* controller, ILogger* logger)
+void SendFrame(ICanController* controller, ILogger* logger,std::vector<uint8_t> payloadBytes)
 {
+    std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
     CanFrame canFrame {};
     canFrame.canId = 3;
     canFrame.flags |= static_cast<CanFrameFlagMask>(CanFrameFlag::Fdf) // FD Format Indicator
@@ -80,10 +81,9 @@ void SendFrame(ICanController* controller, ILogger* logger)
     payloadBuilder << "CAN " << (currentMessageId % 100);
     auto payloadStr = payloadBuilder.str();
 
-    std::vector<uint8_t> payloadBytes;
-    payloadBytes.resize(payloadStr.size());
-    std::copy(payloadStr.begin(), payloadStr.end(), payloadBytes.begin());
-    payloadBytes = {0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xbb,0xaa};
+    
+    //payloadBytes.resize(payloadStr.size());
+    //std::copy(payloadStr.begin(), payloadStr.end(), payloadBytes.begin());
     canFrame.dataField = payloadBytes;
     canFrame.dlc = static_cast<uint16_t>(canFrame.dataField.size());
 
@@ -94,10 +94,10 @@ void SendFrame(ICanController* controller, ILogger* logger)
         std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << ' ';
     }
     std::cout << std::dec << std::endl;
-    std::cout << "****************************************" << std::endl;
+    std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
     
     void* const userContext = reinterpret_cast<void *>(static_cast<intptr_t>(currentMessageId));
-
+    
     controller->SendFrame(std::move(canFrame), userContext);
     std::stringstream buffer;
     buffer << "<< CAN frame sent with userContext=" << userContext;
@@ -191,6 +191,7 @@ int main(int argc, char** argv)
         lifecycleService->SetAbortHandler([](auto lastState) {
             std::cout << "Abort handler called while in state " << lastState << std::endl;
         });
+        
 
         if (runSync)
         {
@@ -208,7 +209,8 @@ int main(int argc, char** argv)
                     [canController, logger, sleepTimePerTick](std::chrono::nanoseconds now,
                                                               std::chrono::nanoseconds duration) {
                         std::cout << "now=" << now << ", duration=" << duration << std::endl;
-                        SendFrame(canController, logger);
+                        std::vector<uint8_t> payloadBytes = {0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xbb,0xaa};
+                        SendFrame(canController, logger,payloadBytes);
                         std::this_thread::sleep_for(sleepTimePerTick);
                     }, 5ms);
             }
@@ -238,8 +240,11 @@ int main(int argc, char** argv)
                            lifecycleService->State() == ParticipantState::Running)
                     {
                         if (participantName == "CanWriter")
-                        {
-                            SendFrame(canController, logger);
+                        {   
+                            std::vector<uint8_t> payloadBytes = {0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xbb,0xaa};
+                            SendFrame(canController, logger,payloadBytes);
+                            std::vector<uint8_t> payloadBytes2 = {0xcc,0xcc,0xcc,0xcc,0xcc,0xcc,0xbb,0xaa};
+                            SendFrame(canController, logger,payloadBytes2);
                         }
                         std::this_thread::sleep_for(sleepTimePerTick);
                     }

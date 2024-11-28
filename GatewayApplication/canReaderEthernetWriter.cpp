@@ -54,6 +54,13 @@ using namespace std::chrono_literals;
 using namespace SilKit::Services::Orchestration;
 using namespace SilKit::Services::Ethernet;
 
+#include <queue>
+
+#include <condition_variable>
+std::mutex mtx; // Mutex for synchronization
+std::condition_variable cond_var; // Condition variable for producer-consumer signaling
+std::queue<std::vector<uint8_t>> buffer;const unsigned int MAX_BUFFER_SIZE = 10; // Maximum size of the buffer
+
 namespace std {
 namespace chrono {
 std::ostream& operator<<(std::ostream& out, nanoseconds timestamp)
@@ -75,13 +82,15 @@ bool received=0;
  * @param frameEvent 
  * @param logger 
  */
+
+
 void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
 {   
     std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
     std::cout<<"Reading frame from CanReader.........."<<std::endl;
     std::string payload(frameEvent.frame.dataField.begin(), frameEvent.frame.dataField.end());
-    std::stringstream buffer;
-    buffer << ">> CAN frame: canId=" << frameEvent.frame.canId
+    std::stringstream buffer2;
+    buffer2 << ">> CAN frame: canId=" << frameEvent.frame.canId
            << " timestamp=" << frameEvent.timestamp
            << " \"" ;
     
@@ -93,11 +102,18 @@ void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
     }
     std::cout << std::dec << std::endl;
     std::cout << "---------------------------------------" << std::endl;
-    logger->Info(buffer.str());
+    logger->Info(buffer2.str());
     std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
     
-    std::lock_guard<std::mutex> lock(payloadMutex);
-    GlobalPayload = std::vector<uint8_t>(frameEvent.frame.dataField.begin(), frameEvent.frame.dataField.end());
+    //std::lock_guard<std::mutex> lock(payloadMutex);
+    std::vector<uint8_t> GlobalPayload = std::vector<uint8_t>(frameEvent.frame.dataField.begin(), frameEvent.frame.dataField.end());
+    std::unique_lock<std::mutex> lock(mtx); // Lock the mutex
+    cond_var.wait(lock, [] { return buffer.size() < MAX_BUFFER_SIZE; }); // Wait until there's space in buffer
+    buffer.push(GlobalPayload); // Add payload to the buffer
+    std::cout << "Producing Payload " << payload << std::endl; // Output the produced payload
+    std::cout << "Buffer size after producing: " << buffer.size() << std::endl << std::endl; // Display buffer size after producing
+    lock.unlock(); // Unlock the mutex
+    cond_var.notify_one(); // Notify one waiting thread
     
     
 }
@@ -176,8 +192,17 @@ void FrameTransmitHandler(IEthernetController* /*controller*/, const EthernetFra
     }
 }
 
-
-void SendFrame(IEthernetController* controller, const EthernetMac& from, const EthernetMac& to,const std::vector<uint8_t> framePayload)
+void consumer() {
+    std::unique_lock<std::mutex> lock(mtx); // Lock the mutex
+    cond_var.wait(lock, [] { return buffer.size() > 0; }); // Wait until there's something in the buffer
+    std::vector<uint8_t> GlobalPayload = buffer.front(); // Get the front payload from buffer
+    buffer.pop(); // Remove the payload from buffer
+    std::cout << "Consuming Payload"<< std::endl; // Output the consumed payload
+    std::cout << "Buffer size after consuming: " << buffer.size() << std::endl << std::endl; // Display buffer size after consuming
+    lock.unlock(); // Unlock the mutex
+    cond_var.notify_one(); // Notify one waiting thread
+}
+void SendFrame(IEthernetController* controller, const EthernetMac& from, const EthernetMac& to)
 {
     std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
     static int frameId = 0;
@@ -188,10 +213,17 @@ void SendFrame(IEthernetController* controller, const EthernetMac& from, const E
     std::vector<uint8_t> payload(payloadString.size() + 1);
     memcpy(payload.data(), payloadString.c_str(), payloadString.size() + 1);
     const auto userContext = reinterpret_cast<void *>(static_cast<intptr_t>(frameId));
+    std::unique_lock<std::mutex> lock(mtx); // Lock the mutex
+    cond_var.wait(lock, [] { return buffer.size() > 0; }); // Wait until there's something in the buffer
+    std::vector<uint8_t> framePayload = buffer.front(); // Get the front payload from buffer
+    buffer.pop(); // Remove the payload from buffer
     auto frame = CreateFrame(to, from, framePayload);
-    std::lock_guard<std::mutex> lock(payloadMutex);
+    //std::lock_guard<std::mutex> lock(payloadMutex);
     controller->SendFrame(EthernetFrame{frame}, userContext);
-
+    std::cout << "Consuming Payload"<< std::endl; // Output the consumed payload
+    std::cout << "Buffer size after consuming: " << buffer.size() << std::endl << std::endl; // Display buffer size after consuming
+    lock.unlock(); // Unlock the mutex
+    cond_var.notify_one(); // Notify one waiting thread
     std::cout << "<< ETH Frame sent with userContext=" << userContext << std::endl;
     std::cout << ">> Sending Ethernet Frame from Gateway to Ethernet Reader " << frame.size()
            << " Bytes" << std::endl;
@@ -311,8 +343,8 @@ int main(int argc, char** argv)
                 while (lifecycleService->State() == ParticipantState::ReadyToRun ||
                         lifecycleService->State() == ParticipantState::Running)
                 {       
-                        //std::lock_guard<std::mutex> lock(payloadMutex);
-                        SendFrame(ethernetController, WriterMacAddr, BroadcastMacAddr,GlobalPayload);
+                        
+                        SendFrame(ethernetController, WriterMacAddr, BroadcastMacAddr);
                         std::cout<<"Frame sent from Ethernet Writer to Ethernet Reader..."<<std::endl;
                         std::this_thread::sleep_for(sleepTimePerTick);
                 }
