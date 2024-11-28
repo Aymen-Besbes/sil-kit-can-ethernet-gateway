@@ -67,6 +67,7 @@ std::ostream& operator<<(std::ostream& out, nanoseconds timestamp)
 
 std::mutex payloadMutex;
 std::vector<uint8_t> GlobalPayload={0x1};
+bool received=0;
 
 /**
  * @brief 
@@ -75,15 +76,17 @@ std::vector<uint8_t> GlobalPayload={0x1};
  * @param logger 
  */
 void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
-{
+{   
+    std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
+    std::cout<<"Reading frame from CanReader.........."<<std::endl;
     std::string payload(frameEvent.frame.dataField.begin(), frameEvent.frame.dataField.end());
     std::stringstream buffer;
     buffer << ">> CAN frame: canId=" << frameEvent.frame.canId
            << " timestamp=" << frameEvent.timestamp
-           << " \"" << payload << "\"";
+           << " \"" ;
     
     std::cout << ">> Receiving Can Frame from CanWriter" << frameEvent.frame.dataField.size()
-           << " Bytes" << std::endl;
+           << "  Bytes:" << std::endl;
     for (const unsigned char &byte : frameEvent.frame.dataField)
     {
         std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << ' ';
@@ -91,9 +94,12 @@ void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
     std::cout << std::dec << std::endl;
     std::cout << "---------------------------------------" << std::endl;
     logger->Info(buffer.str());
-    std::cout<<"Reading frame from CanReader"<<std::endl;
+    std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
+    
     std::lock_guard<std::mutex> lock(payloadMutex);
     GlobalPayload = std::vector<uint8_t>(frameEvent.frame.dataField.begin(), frameEvent.frame.dataField.end());
+    
+    
 }
 
 
@@ -173,6 +179,7 @@ void FrameTransmitHandler(IEthernetController* /*controller*/, const EthernetFra
 
 void SendFrame(IEthernetController* controller, const EthernetMac& from, const EthernetMac& to,const std::vector<uint8_t> framePayload)
 {
+    std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
     static int frameId = 0;
     std::stringstream stream;
     stream <<"frameid:" << frameId++ << ")"
@@ -180,7 +187,6 @@ void SendFrame(IEthernetController* controller, const EthernetMac& from, const E
     auto payloadString = stream.str();
     std::vector<uint8_t> payload(payloadString.size() + 1);
     memcpy(payload.data(), payloadString.c_str(), payloadString.size() + 1);
-    std::cout<<"Ethernet payload::::"<<std::endl;
     const auto userContext = reinterpret_cast<void *>(static_cast<intptr_t>(frameId));
     auto frame = CreateFrame(to, from, framePayload);
     std::lock_guard<std::mutex> lock(payloadMutex);
@@ -195,7 +201,7 @@ void SendFrame(IEthernetController* controller, const EthernetMac& from, const E
         std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << ' ';
     }
     std::cout << std::dec << std::endl;
-    std::cout << "****************************************" << std::endl;
+    std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
 
     
 
