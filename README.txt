@@ -18,3 +18,10 @@ The layout of this release bundle is as follows:
   - The complete source tree of the SIL Kit with a limited set of
     third-party components.
 
++/ GatewayApplication/
+  - A Gateway Application Demo that Receive CAN Frames from CanWriter 
+    and send it into Ethernet Frame to an EthernetReader
+
++/ GatewayApplication/
+  - A Gateway Applecation Demo that Receive Ethernet Frames from EthernetWriter 
+    and send it into CAN Frame to a CanReader
