@@ -1,0 +1,10 @@
+Description: Sample configuration for CAN
+Logging:
+  Sinks:
+    - Level: Info
+      Type: Stdout
+Tracing:
+  TraceSinks:
+    - Name: TraceSink1
+      Type: PcapFile
+      OutputPath: ../vecu_trace.pcap

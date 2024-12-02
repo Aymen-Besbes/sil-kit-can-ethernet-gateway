@@ -62,6 +62,8 @@ using namespace SilKit::Services::Ethernet;
 using EtherType = uint16_t;
 using EthernetMac = std::array<uint8_t, 6>;
 
+
+//Initialization for the buffer use
 std::mutex mtx; // Mutex for synchronization
 std::condition_variable cond_var; // Condition variable for producer-consumer signaling
 std::queue<std::vector<uint8_t>> buffer;const unsigned int MAX_BUFFER_SIZE = 10; // Maximum size of the buffer
@@ -179,17 +181,16 @@ void SendFrame(IEthernetController* controller, const EthernetMac& from, const E
     std::vector<uint8_t> payload(payloadString.size() + 1);
     memcpy(payload.data(), payloadString.c_str(), payloadString.size() + 1);
     const auto userContext = reinterpret_cast<void *>(static_cast<intptr_t>(frameId));
-    std::unique_lock<std::mutex> lock(mtx); // Lock the mutex
-    cond_var.wait(lock, [] { return buffer.size() > 0; }); // Wait until there's something in the buffer
-    std::vector<uint8_t> framePayload = buffer.front(); // Get the front payload from buffer
-    buffer.pop(); // Remove the payload from buffer
+    std::unique_lock<std::mutex> lock(mtx); 
+    cond_var.wait(lock, [] { return buffer.size() > 0; }); 
+    std::vector<uint8_t> framePayload = buffer.front(); 
+    buffer.pop(); 
     auto frame = CreateFrame(to, from, framePayload);
-    //std::lock_guard<std::mutex> lock(payloadMutex);
     controller->SendFrame(EthernetFrame{frame}, userContext);
-    std::cout << "Consuming Payload"<< std::endl; // Output the consumed payload
-    std::cout << "Buffer size after consuming: " << buffer.size() << std::endl << std::endl; // Display buffer size after consuming
-    lock.unlock(); // Unlock the mutex
-    cond_var.notify_one(); // Notify one waiting thread
+    std::cout << "Consuming Payload"<< std::endl;
+    std::cout << "Buffer size after consuming: " << buffer.size() << std::endl << std::endl;
+    lock.unlock();
+    cond_var.notify_one(); 
     std::cout << "<< ETH Frame sent with userContext=" << userContext << std::endl;
     std::cout << ">> Sending Ethernet Frame from Gateway to Ethernet Reader " << frame.size()
            << " Bytes" << std::endl;
@@ -254,6 +255,7 @@ int main(int argc, char** argv)
         }
 
         auto participantConfiguration = SilKit::Config::ParticipantConfigurationFromFile(participantConfigurationFilename);
+        std::cout<<"--********---"<< participantConfiguration<<std::endl;
         auto sleepTimePerTick = 1000ms;
 
         std::cout << "Creating participant Gateway with registry " << registryUri << std::endl;
@@ -331,6 +333,7 @@ int main(int argc, char** argv)
         {
             workerThread.join();
         }
+       
         std::cout << "The participant has shut down and left the simulation" << std::endl;
         
     }
