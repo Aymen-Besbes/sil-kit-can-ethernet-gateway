@@ -1,23 +1,6 @@
-/* Copyright (c) 2022 Vector Informatik GmbH
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
+/*This code is an implementation of a Can to Ethernet Gateway demo 
+to ensure the reception of a can frame from a CanWriter and send it 
+to an EthernetReader using SilKit */
 
 #include <algorithm>
 #include <cstring>
@@ -40,9 +23,6 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #include "silkit/services/orchestration/all.hpp"
 #include "silkit/services/orchestration/string_utils.hpp"
 #include "silkit/SilKit.hpp"
-#include "silkit/services/logging/ILogger.hpp"
-#include "silkit/services/orchestration/all.hpp"
-#include "silkit/services/orchestration/string_utils.hpp"
 #include "silkit/services/can/all.hpp"
 #include "silkit/services/can/string_utils.hpp"
 #include <mutex>
@@ -60,14 +40,15 @@ using namespace SilKit::Services::Ethernet;
 
 // Field in a frame that can indicate the protocol, payload size, or the start of a VLAN tag
 using EtherType = uint16_t;
-using EthernetMac = std::array<uint8_t, 6>;
+//Define the source and the destination addresses to use it into the Ethernet Frame
 const std::array<uint8_t, 6> sourceAddress = {0xF6, 0x04, 0x68, 0x71, 0xAA, 0xC1};
 const std::array<uint8_t, 6> destinationAddress = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-
-//Initialization for the buffer use
-std::mutex mtx; // Mutex for synchronization
-std::condition_variable cond_var; // Condition variable for producer-consumer signaling
-std::queue<std::vector<uint8_t>> buffer;const unsigned int MAX_BUFFER_SIZE = 10; // Maximum size of the buffer
+// Mutex for synchronization
+std::mutex mtx; 
+// Condition variable for producer-consumer signaling
+std::condition_variable cond_var; 
+// Maximum size of the buffer
+std::queue<std::vector<uint8_t>> buffer;const unsigned int MAX_BUFFER_SIZE = 10; 
 
 namespace std {
 namespace chrono {
@@ -79,15 +60,6 @@ std::ostream& operator<<(std::ostream& out, nanoseconds timestamp)
 }
 }
 }
-
-
-/**
- * @brief 
- * 
- * @param frameEvent 
- * @param logger 
- */
-
 
 void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
 {   
@@ -132,8 +104,6 @@ void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
     
 }
 
-/* ************************************************ */
-
 std::ostream& operator<<(std::ostream& out, std::chrono::nanoseconds timestamp)
 {
     auto seconds = std::chrono::duration_cast<std::chrono::duration<double, std::ratio<1, 1>>>(timestamp);
@@ -142,21 +112,37 @@ std::ostream& operator<<(std::ostream& out, std::chrono::nanoseconds timestamp)
 }
 
 std::vector<uint8_t> CreateFrame(const std::vector<uint8_t>& payload)
-{
+{   
+    /**
+     * @brief This function is designed to encapsulate the payload into an Ethernet Frame
+     * @param payload a vector representing the data to encapsulatye into an Ethernet Frame
+     * 
+     */
+
+    // Define the Ethertype as IPv4
     const uint16_t etherType = 0x0800; 
+    // Initialize the frame
     std::vector<uint8_t> raw={};
+    // Add the destination address
     std::copy(destinationAddress.begin(), destinationAddress.end(), std::back_inserter(raw));
+    // Add the source address
     std::copy(sourceAddress.begin(), sourceAddress.end(), std::back_inserter(raw));
+    // Add the etherTypeBytes
     auto etherTypeBytes = reinterpret_cast<const uint8_t*>(&etherType);
-    
+    // Add the payload
     std::copy(payload.begin(), payload.end(), std::back_inserter(raw));
+    // Add the Frame Check Sequence
     raw.push_back(etherTypeBytes[1]);  // We assume our platform to be little-endian
     raw.push_back(etherTypeBytes[0]);
     return raw;
 }
 
 void FrameTransmitHandler(IEthernetController* /*controller*/, const EthernetFrameTransmitEvent& frameTransmitEvent)
-{
+{   
+    /**
+     * @brief 
+     * 
+     */
     if (frameTransmitEvent.status == EthernetTransmitStatus::Transmitted)
     {
         std::cout << ">> ACK for Ethernet frame with userContext=" << frameTransmitEvent.userContext << std::endl;
@@ -188,23 +174,37 @@ void FrameTransmitHandler(IEthernetController* /*controller*/, const EthernetFra
 
 void SendFrame(IEthernetController* controller)
 {
+    /**
+     * @brief This function is designed to ensure the get of the payload from the buffer and send it into an Ethernet Frame to the EthernetReader
+     * 
+     *@param controller the Ethernet Controller
+     */
     std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
     static int frameId = 0;
     frameId++;
     const auto userContext = reinterpret_cast<void *>(static_cast<intptr_t>(frameId));
+    // Lock the mutex
     std::unique_lock<std::mutex> lock(mtx); 
+    // Wait until there's content in the buffer
     cond_var.wait(lock, [] { return buffer.size() > 0; }); 
+    // Get the first element from the buffer
     std::vector<uint8_t> framePayload = buffer.front(); 
-    buffer.pop(); 
+    // Delete the payload from the buffer
+    buffer.pop();
+    // Encapsulate the extracted payload into an Ethernet frame 
     auto frame = CreateFrame(framePayload);
+    // Send the Ethernet Frame 
     controller->SendFrame(EthernetFrame{frame}, userContext);
     std::cout << "Consuming Payload"<< std::endl;
     std::cout << "Buffer size after consuming: " << buffer.size() << std::endl << std::endl;
+    // Unlock the mutex
     lock.unlock();
+    // Notify one waiting thread
     cond_var.notify_one(); 
     std::cout << "<< ETH Frame sent with userContext=" << userContext << std::endl;
     std::cout << ">> Sending Ethernet Frame from Gateway to Ethernet Reader " << frame.size()
            << " Bytes" << std::endl;
+    // Print the frame sent to EthernetReader 
     for (const unsigned char &byte : frame)
     {
         std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << ' ';
@@ -215,6 +215,8 @@ void SendFrame(IEthernetController* controller)
     
 
 }
+
+
 
 /**************************************************************************************************
  * Main Function
@@ -292,7 +294,6 @@ int main(int argc, char** argv)
         lifecycleService->SetAbortHandler([](auto lastState) {
             std::cout << "Abort handler called while in state " << lastState << std::endl;
         });
-        std::cout<<"Hi from can lifecycle"<<std::endl;
         std::atomic<bool> isStopRequested = {false};
         std::thread workerThread;
         std::promise<void> promiseObj;
@@ -341,7 +342,7 @@ int main(int argc, char** argv)
         {
             workerThread.join();
         }
-       
+        std::cin.ignore();
         std::cout << "The participant has shut down and left the simulation" << std::endl;
         
     }
