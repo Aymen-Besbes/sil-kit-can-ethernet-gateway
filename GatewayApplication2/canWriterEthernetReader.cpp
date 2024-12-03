@@ -106,16 +106,20 @@ void FrameHandler(IEthernetController* /*controller*/, const EthernetFrameEvent&
     std::vector<uint8_t> GlobalPayload;
     // Insert the payload from the raw Ethernet frame, skipping the header
     GlobalPayload.insert(GlobalPayload.end(), 
-        frame.raw.begin() + 42,  // Start after the header
-        frame.raw.end()                      // Continue to the end of the frame
+        frame.raw.begin() + 42,  
+        frame.raw.end()               
     );
-
-    std::unique_lock<std::mutex> lock(mtx); // Lock the mutex
-    cond_var.wait(lock, [] { return buffer.size() < MAX_BUFFER_SIZE; }); // Wait until there's space in buffer
-    buffer.push(GlobalPayload); // Add payload to the buffer
-    std::cout << "Producing Payload " << GetPayloadStringFromFrame(frame) << std::endl; // Output the produced payload
-    std::cout << "Buffer size after producing: " << buffer.size() << std::endl << std::endl; // Display buffer size after producing
-    lock.unlock(); // Unlock the mutex
+    // Lock the mutex
+    std::unique_lock<std::mutex> lock(mtx); 
+    // Wait until there's space in buffer
+    cond_var.wait(lock, [] { return buffer.size() < MAX_BUFFER_SIZE; });
+    // Add payload to the buffer
+    buffer.push(GlobalPayload); 
+    std::cout << "Producing Payload " << std::endl; 
+    // Display buffer size after producing
+    std::cout << "Buffer size after producing: " << buffer.size() << std::endl << std::endl; 
+    // Unlock the mutex
+    lock.unlock(); 
     cond_var.notify_one(); // Notify one waiting thread
 }
 
@@ -170,19 +174,19 @@ void SendFrame(ICanController* controller, ILogger* logger)
     
     void* const userContext = reinterpret_cast<void *>(static_cast<intptr_t>(currentMessageId));
     
-    std::unique_lock<std::mutex> lock(mtx); // Lock the mutex
-    cond_var.wait(lock, [] { return buffer.size() > 0; }); // Wait until there's something in the buffer
-    std::vector<uint8_t> framePayload = buffer.front(); // Get the front payload from buffer
-    buffer.pop(); // Remove the payload from buffer
+    std::unique_lock<std::mutex> lock(mtx); 
+    cond_var.wait(lock, [] { return buffer.size() > 0; }); 
+    std::vector<uint8_t> framePayload = buffer.front(); 
+    buffer.pop(); 
     canFrame.dataField = framePayload;
     controller->SendFrame(std::move(canFrame), userContext);
     std::stringstream buffer2;
     buffer2 << "<< CAN frame sent with userContext=" << userContext;
     logger->Info(buffer2.str());
-    std::cout << "Consuming Payload"<< std::endl; // Output the consumed payload
-    std::cout << "Buffer size after consuming: " << buffer.size() << std::endl << std::endl; // Display buffer size after consuming
-    lock.unlock(); // Unlock the mutex
-    cond_var.notify_one(); // Notify one waiting thread
+    std::cout << "Consuming Payload"<< std::endl; 
+    std::cout << "Buffer size after consuming: " << buffer.size() << std::endl << std::endl;           
+    lock.unlock();
+    cond_var.notify_one();                                      
     std::cout << "<< ETH Frame sent with userContext=" << userContext << std::endl;
     std::cout << ">> Sending Can Frame from Gateway to CanReader " << canFrame.dataField.size()
            << " Bytes" << std::endl;
