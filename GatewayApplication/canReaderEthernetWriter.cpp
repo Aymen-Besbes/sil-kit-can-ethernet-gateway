@@ -144,9 +144,7 @@ std::ostream& operator<<(std::ostream& out, std::chrono::nanoseconds timestamp)
 std::vector<uint8_t> CreateFrame(const std::vector<uint8_t>& payload)
 {
     const uint16_t etherType = 0x0800; 
-    std::vector<uint8_t> raw={}; //= {0x01, 0x00, 0x5e, 0x60, 0xe0, 0xf5, 0x8c, 0x16, 0x45, 0x04, 0x10, 0xa4, 0x08, 0x00, 0x45, 0x00,
-                               //                0x00, 0x64, 0x2b, 0x77, 0x40, 0x00, 0x01, 0x11, 0xcc, 0x28, 0xac, 0x10, 0x14, 0x03, 0xe0, 0xe0,
-                                 //              0xe0, 0xf5, 0x77, 0x1a, 0x77, 0x1a, 0x00, 0x50, 0x82, 0x4b};
+    std::vector<uint8_t> raw={};
     std::copy(destinationAddress.begin(), destinationAddress.end(), std::back_inserter(raw));
     std::copy(sourceAddress.begin(), sourceAddress.end(), std::back_inserter(raw));
     auto etherTypeBytes = reinterpret_cast<const uint8_t*>(&etherType);
