@@ -61,7 +61,8 @@ using namespace SilKit::Services::Ethernet;
 // Field in a frame that can indicate the protocol, payload size, or the start of a VLAN tag
 using EtherType = uint16_t;
 using EthernetMac = std::array<uint8_t, 6>;
-
+const std::array<uint8_t, 6> sourceAddress = {0xF6, 0x04, 0x68, 0x71, 0xAA, 0xC1};
+const std::array<uint8_t, 6> destinationAddress = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 //Initialization for the buffer use
 std::mutex mtx; // Mutex for synchronization
@@ -90,15 +91,21 @@ std::ostream& operator<<(std::ostream& out, nanoseconds timestamp)
 
 void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
 {   
+    /**
+     * @brief This function is designed to receive Can Frames from CanWriter and extract the payload and save it into buffer.
+     * 
+     * @param frameEvent The event of an incoming CAN frame including transmit ID, timestamp and the actual frame.
+     * @param logger 
+     */
     std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
     std::cout<<"Reading frame from CanReader.........."<<std::endl;
-    std::string payload(frameEvent.frame.dataField.begin(), frameEvent.frame.dataField.end());
     std::stringstream buffer2;
     buffer2 << ">> CAN frame: canId=" << frameEvent.frame.canId
            << " timestamp=" << frameEvent.timestamp
            << " \"" ;
     std::cout << ">> Receiving Can Frame from CanWriter" << frameEvent.frame.dataField.size()
            << "  Bytes:" << std::endl;
+    // Print the frame
     for (const unsigned char &byte : frameEvent.frame.dataField)
     {
         std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << ' ';
@@ -107,14 +114,20 @@ void FrameHandler(const CanFrameEvent& frameEvent, ILogger* logger)
     std::cout << "---------------------------------------" << std::endl;
     logger->Info(buffer2.str());
     std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
+    // Extract the payload of the receiving can frame
     std::vector<uint8_t> GlobalPayload = std::vector<uint8_t>(frameEvent.frame.dataField.begin(), frameEvent.frame.dataField.end());
-    std::unique_lock<std::mutex> lock(mtx); // Lock the mutex
-    cond_var.wait(lock, [] { return buffer.size() < MAX_BUFFER_SIZE; }); // Wait until there's space in buffer
-    buffer.push(GlobalPayload); // Add payload to the buffer
-    std::cout << "Producing Payload " << payload << std::endl; // Output the produced payload
-    std::cout << "Buffer size after producing: " << buffer.size() << std::endl << std::endl; // Display buffer size after producing
-    lock.unlock(); // Unlock the mutex
-    cond_var.notify_one(); // Notify one waiting thread
+    // Lock the mutex
+    std::unique_lock<std::mutex> lock(mtx); 
+    // Wait until there's space in buffer
+    cond_var.wait(lock, [] { return buffer.size() < MAX_BUFFER_SIZE; }); 
+    // Add payload to the buffer
+    buffer.push(GlobalPayload); 
+    std::cout << "Producing Payload " << std::endl; 
+    std::cout << "Buffer size after producing: " << buffer.size() << std::endl << std::endl; 
+    //Unlock the mutex
+    lock.unlock();
+    //Notify the waiting thread 
+    cond_var.notify_one(); 
     
     
 }
@@ -128,14 +141,19 @@ std::ostream& operator<<(std::ostream& out, std::chrono::nanoseconds timestamp)
     return out;
 }
 
-std::vector<uint8_t> CreateFrame(const EthernetMac& destinationAddress, const EthernetMac& sourceAddress,
-                                 const std::vector<uint8_t>& payload)
+std::vector<uint8_t> CreateFrame(const std::vector<uint8_t>& payload)
 {
-    const uint16_t etherType = 0x0000;  // no protocol
-    std::vector<uint8_t> raw = {0x01, 0x00, 0x5e, 0x60, 0xe0, 0xf5, 0x8c, 0x16, 0x45, 0x04, 0x10, 0xa4, 0x08, 0x00, 0x45, 0x00,
-                                               0x00, 0x64, 0x2b, 0x77, 0x40, 0x00, 0x01, 0x11, 0xcc, 0x28, 0xac, 0x10, 0x14, 0x03, 0xe0, 0xe0,
-                                               0xe0, 0xf5, 0x77, 0x1a, 0x77, 0x1a, 0x00, 0x50, 0x82, 0x4b};
+    const uint16_t etherType = 0x0800; 
+    std::vector<uint8_t> raw={}; //= {0x01, 0x00, 0x5e, 0x60, 0xe0, 0xf5, 0x8c, 0x16, 0x45, 0x04, 0x10, 0xa4, 0x08, 0x00, 0x45, 0x00,
+                               //                0x00, 0x64, 0x2b, 0x77, 0x40, 0x00, 0x01, 0x11, 0xcc, 0x28, 0xac, 0x10, 0x14, 0x03, 0xe0, 0xe0,
+                                 //              0xe0, 0xf5, 0x77, 0x1a, 0x77, 0x1a, 0x00, 0x50, 0x82, 0x4b};
+    std::copy(destinationAddress.begin(), destinationAddress.end(), std::back_inserter(raw));
+    std::copy(sourceAddress.begin(), sourceAddress.end(), std::back_inserter(raw));
+    auto etherTypeBytes = reinterpret_cast<const uint8_t*>(&etherType);
+    
     std::copy(payload.begin(), payload.end(), std::back_inserter(raw));
+    raw.push_back(etherTypeBytes[1]);  // We assume our platform to be little-endian
+    raw.push_back(etherTypeBytes[0]);
     return raw;
 }
 
@@ -170,22 +188,17 @@ void FrameTransmitHandler(IEthernetController* /*controller*/, const EthernetFra
     }
 }
 
-void SendFrame(IEthernetController* controller, const EthernetMac& from, const EthernetMac& to)
+void SendFrame(IEthernetController* controller)
 {
     std::cout << "--------------------------------------- \n ---------------------------------------" << std::endl;
     static int frameId = 0;
-    std::stringstream stream;
-    stream <<"frameid:" << frameId++ << ")"
-            "----------------------------------------------------"; // ensure that the payload is long enough to constitute a valid Ethernet frame
-    auto payloadString = stream.str();
-    std::vector<uint8_t> payload(payloadString.size() + 1);
-    memcpy(payload.data(), payloadString.c_str(), payloadString.size() + 1);
+    frameId++;
     const auto userContext = reinterpret_cast<void *>(static_cast<intptr_t>(frameId));
     std::unique_lock<std::mutex> lock(mtx); 
     cond_var.wait(lock, [] { return buffer.size() > 0; }); 
     std::vector<uint8_t> framePayload = buffer.front(); 
     buffer.pop(); 
-    auto frame = CreateFrame(to, from, framePayload);
+    auto frame = CreateFrame(framePayload);
     controller->SendFrame(EthernetFrame{frame}, userContext);
     std::cout << "Consuming Payload"<< std::endl;
     std::cout << "Buffer size after consuming: " << buffer.size() << std::endl << std::endl;
@@ -194,7 +207,6 @@ void SendFrame(IEthernetController* controller, const EthernetMac& from, const E
     std::cout << "<< ETH Frame sent with userContext=" << userContext << std::endl;
     std::cout << ">> Sending Ethernet Frame from Gateway to Ethernet Reader " << frame.size()
            << " Bytes" << std::endl;
-
     for (const unsigned char &byte : frame)
     {
         std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << ' ';
@@ -212,8 +224,7 @@ void SendFrame(IEthernetController* controller, const EthernetMac& from, const E
 
 int main(int argc, char** argv)
 {
-    EthernetMac WriterMacAddr = {0xF6, 0x04, 0x68, 0x71, 0xAA, 0xC1};
-    EthernetMac BroadcastMacAddr = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    
 
     if (argc < 2)
     {
@@ -255,7 +266,6 @@ int main(int argc, char** argv)
         }
 
         auto participantConfiguration = SilKit::Config::ParticipantConfigurationFromFile(participantConfigurationFilename);
-        std::cout<<"--********---"<< participantConfiguration<<std::endl;
         auto sleepTimePerTick = 1000ms;
 
         std::cout << "Creating participant Gateway with registry " << registryUri << std::endl;
@@ -300,9 +310,9 @@ int main(int argc, char** argv)
                         lifecycleService->State() == ParticipantState::Running)
                 {       
                         
-                        SendFrame(ethernetController, WriterMacAddr, BroadcastMacAddr);
+                        SendFrame(ethernetController);
                         std::cout<<"Frame sent from Ethernet Writer to Ethernet Reader..."<<std::endl;
-                        std::this_thread::sleep_for(sleepTimePerTick);
+                        //std::this_thread::sleep_for(sleepTimePerTick);
                 }
                 if (!isStopRequested)
                 {
