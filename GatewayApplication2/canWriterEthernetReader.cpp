@@ -125,18 +125,6 @@ void FrameHandler(IEthernetController* /*controller*/, const EthernetFrameEvent&
 
 /* ************************************************ */
 
-
-
-std::vector<uint8_t> CreateFrame(const EthernetMac& destinationAddress, const EthernetMac& sourceAddress,
-                                 const std::vector<uint8_t>& payload)
-{
-    const uint16_t etherType = 0x0000;  // no protocol
-    std::vector<uint8_t> raw = {0x01, 0x00, 0x5e, 0x60, 0xe0, 0xf5, 0x8c, 0x16, 0x45, 0x04, 0x10, 0xa4, 0x08, 0x00, 0x45, 0x00,
-                                               0x00, 0x64, 0x2b, 0x77, 0x40, 0x00, 0x01, 0x11, 0xcc, 0x28, 0xac, 0x10, 0x14, 0x03, 0xe0, 0xe0,
-                                               0xe0, 0xf5, 0x77, 0x1a, 0x77, 0x1a, 0x00, 0x50, 0x82, 0x4b};
-    std::copy(payload.begin(), payload.end(), std::back_inserter(raw));
-    return raw;
-}
 namespace std {
 namespace chrono {
 std::ostream& operator<<(std::ostream& out, nanoseconds timestamp)
