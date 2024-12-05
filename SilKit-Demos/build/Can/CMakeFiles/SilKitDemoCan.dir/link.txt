@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/SilKitDemoCan.dir/CanDemo.cpp.o  -o /home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit/bin/SilKitDemoCan  -Wl,-rpath,/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit/lib /home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit/lib/libSilKitd.so -lpthread 

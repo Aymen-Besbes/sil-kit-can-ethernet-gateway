@@ -1,0 +1,2 @@
+/usr/bin/ar qc libS_Test_Hourglass.a  CMakeFiles/S_Test_Hourglass.dir/MockCapi.cpp.o
+/usr/bin/ranlib libS_Test_Hourglass.a

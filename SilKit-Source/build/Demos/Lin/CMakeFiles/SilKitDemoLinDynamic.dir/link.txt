@@ -1,0 +1,1 @@
+/usr/bin/c++  -O3 -DNDEBUG   CMakeFiles/SilKitDemoLinDynamic.dir/LinDemoDynamic.cpp.o  -o ../../Release/SilKitDemoLinDynamic  -Wl,-rpath,/home/ubuntu2004/SilKit-4.0.50-ubuntu-18.04-x86_64-gcc/SilKit-Source/build/Release ../../Release/libSilKit.so -lpthread 
