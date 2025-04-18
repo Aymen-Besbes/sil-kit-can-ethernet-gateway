@@ -6,8 +6,6 @@ This repository contains the release bundle for **Vector SIL Kit 4.0.50**, which
 
 ## 📁 Repository Layout
 
-## 📁 Directory Structure
-
 ```text
 ├── GatewayApplication/          # Custom application: CAN → Ethernet gateway
 │
