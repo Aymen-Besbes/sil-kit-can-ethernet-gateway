@@ -97,3 +97,11 @@ The `.yaml` configuration file should specify the parameters for each applicatio
 This README provides the basic steps to get started with the SilKit demo applications. For more advanced usage or troubleshooting, refer to the SilKit documentation.
 
 ---
+
+## 📬 Contact
+
+Author: Aymen Besbes
+
+Email: Aymen.besbes@outlook.com | Aymen.besbes@ensi-uma.tn
+
+LinkedIn: https://www.linkedin.com/in/aymen-besbes-158837245/
