@@ -47,7 +47,6 @@ A demo application that **receives Ethernet frames from an `EthernetWriter`** an
   ![GatewayApplication2 Architecture](./GatewayApplication2/Gateway2.png)
 
 ---
----
 
 ## 📬 Contact
 Author: Aymen Besbes
